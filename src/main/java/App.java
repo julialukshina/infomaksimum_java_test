@@ -5,36 +5,38 @@ import org.xml.sax.XMLReader;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 
 public class App {
-    static Map<String, Map<Integer, Integer>> houseCities = new HashMap<>();
+    public static Map<String, Map<Integer, Integer>> houseCities = new HashMap<>();
     static Map<String, Integer> repeatableCities = new HashMap<>();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws UnsupportedEncodingException {
         Scanner scanner = new Scanner(System.in);
         printMenu();
         while (scanner.hasNext()) {
             String command = scanner.nextLine();
+            if(command.equals("INFOMAKSIMUM")){
+                System.out.println("The application is closed");
+                break;
+            }
             if (Files.exists(Paths.get(command))) {
                 if (command.endsWith(".csv")) {
-                    parseCsv(command);
-                    printStatistic();
+                    parseCsv(command, "utf-8");
+//                    parseCsv(command);
+                    printStatistic("utf-8");
                     clearMaps();
                 }
 
                 if (command.endsWith(".xml")) {
-                    parseXml(command);
-                    printStatistic();
+                    parseXml(command, "windows-1251");
+                    printStatistic("windows-1251");
                     clearMaps();
                 }
             } else {
@@ -52,7 +54,7 @@ public class App {
 
     private static void printMenu() {
         System.out.println("If you want to get statistics, enter the path to the file" + "\n"
-                + "If you want to close the application, click Ctrl+D");
+                + "If you want to close the application, click Ctrl+D or enter INFOMAKSIMUM");
     }
 
     private static boolean isNumber(String s) throws NumberFormatException {
@@ -64,7 +66,7 @@ public class App {
         }
     }
 
-    private static void clearMaps() {
+    public static void clearMaps() {
         repeatableCities.clear();
         houseCities.clear();
     }
@@ -90,29 +92,34 @@ public class App {
         }
     }
 
-    private static void printStatistic() {
-        System.out.println("Repeatable cities:");
-        repeatableCities.entrySet()
-                .stream()
-                .filter(e -> e.getValue() > 0)
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(System.out::println);
+    public static void printStatistic(String encoding) throws UnsupportedEncodingException {
+        System.setOut(new PrintStream(System.out, true, encoding));
+        if(!repeatableCities.isEmpty()) {
+            System.out.println("Repeatable cities:");
+            repeatableCities.entrySet()
+                    .stream()
+                    .filter(e -> e.getValue() > 0)
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(System.out::println);
 
-        for (Map.Entry<String, Map<Integer, Integer>> entry : houseCities.entrySet()) {
-            System.out.println("Number of houses in the city:");
-            System.out.println(entry.getKey());
-            Map<Integer, Integer> value = entry.getValue();
-            for (Map.Entry<Integer, Integer> entry1 : value.entrySet()) {
-                if (entry1.getKey() > 1 && entry1.getKey() < 6) {
-                    System.out.println("Floor's number: " + entry1.getKey() + ", number of houses: "
-                            + entry1.getValue());
+            for (Map.Entry<String, Map<Integer, Integer>> entry : houseCities.entrySet()) {
+                System.out.println("Number of houses in the city:");
+                System.out.println(entry.getKey());
+                Map<Integer, Integer> value = entry.getValue();
+                for (Map.Entry<Integer, Integer> entry1 : value.entrySet()) {
+                    if (entry1.getKey() > 1 && entry1.getKey() < 6) {
+                        System.out.println("Floor's number: " + entry1.getKey() + ", number of houses: "
+                                + entry1.getValue());
+                    }
                 }
             }
+        }else{
+            System.out.println("The file have not suitable information");
         }
     }
 
-    public static void parseCsv(String command) {
-        try (BufferedReader br = new BufferedReader(new FileReader(command))) {
+    public static void parseCsv(String command, String encoding) {
+        try (BufferedReader br = Files.newBufferedReader(Paths.get(command), Charset.forName(encoding))) {
             while (br.ready()) {
                 String line = br.readLine();
                 String[] lineContents = line.split(";");
@@ -120,7 +127,9 @@ public class App {
                         (lineContents[0] != null && !lineContents[0].equals(""))
                         && (lineContents[1] != null && !lineContents[1].equals(""))
                         && isNumber(lineContents[2]) && isNumber(lineContents[3])) {
-                    completeMaps(lineContents[0], Integer.parseInt(lineContents[3]));
+                    StringBuilder sb = new StringBuilder(lineContents[0]);
+                    String city = sb.substring(1, lineContents[0].length() - 1);
+                    completeMaps(city, Integer.parseInt(lineContents[3]));
                 }
             }
         } catch (FileNotFoundException e) {
@@ -130,8 +139,27 @@ public class App {
             e.printStackTrace();
         }
     }
+//public static void parseCsv(String command) {
+//    try (BufferedReader br = new BufferedReader(new FileReader(command))) {
+//        while (br.ready()) {
+//            String line = br.readLine();
+//            String[] lineContents = line.split(";");
+//            if (lineContents.length == 4 &&
+//                    (lineContents[0] != null && !lineContents[0].equals(""))
+//                    && (lineContents[1] != null && !lineContents[1].equals(""))
+//                    && isNumber(lineContents[2]) && isNumber(lineContents[3])) {
+//                completeMaps(lineContents[0], Integer.parseInt(lineContents[3]));
+//            }
+//        }
+//    } catch (FileNotFoundException e) {
+//        System.out.println("The file not found");
+//        e.printStackTrace();
+//    } catch (IOException e) {
+//        e.printStackTrace();
+//    }
+//}
 
-    public static void parseXml(String command) {
+    public static void parseXml(String command, String encoding) {
         SAXParserFactory factory = SAXParserFactory.newInstance();
         try {
             SAXParser parser = factory.newSAXParser();
@@ -139,21 +167,16 @@ public class App {
             XMLReader reader = parser.getXMLReader();
             reader.setContentHandler(handler);
             InputSource source = new InputSource(command);
-            source.setEncoding("windows-1251");
+            source.setEncoding(encoding);
             reader.parse(source);
             for (Item item : handler.getItems()) {
                 if ((item.getCity() != null && !item.getCity().equals(""))
                         && (item.getStreet() != null && !item.getStreet().equals(""))
                         && isNumber(item.getHouse()) && isNumber(item.getFloor())) {
-
                     completeMaps(item.getCity(), Integer.parseInt(item.getFloor()));
                 }
             }
-        } catch (ParserConfigurationException e) {
-            e.printStackTrace();
-        } catch (SAXException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
+        } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
         }
     }
